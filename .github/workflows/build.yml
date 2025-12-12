@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
+permissions:
+  contents: write
+  packages: write
+  actions: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -94,8 +99,18 @@ jobs:
         echo "timestamp=$(date -u '+%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
         echo "branch=$(echo ${GITHUB_REF#refs/heads/} | sed 's/[^a-zA-Z0-9]/-/g')" >> $GITHUB_OUTPUT
     
+    - name: Debug permissions
+      run: |
+        echo "GitHub event: ${{ github.event_name }}"
+        echo "GitHub ref: ${{ github.ref }}"
+        echo "Repository: ${{ github.repository }}"
+        echo "Actor: ${{ github.actor }}"
+        echo "Token length: ${#GITHUB_TOKEN}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
     - name: Create/Update Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: release/*
         tag_name: "build-${{ steps.commit.outputs.timestamp }}-${{ steps.commit.outputs.sha_short }}"
@@ -112,27 +127,17 @@ jobs:
           - `xsa-linux-arm64` - Linux ARM64 binary
           - `checksums.sha256` - SHA256 checksums
           
-          ### Usage
+          ### Quick Start
           ```bash
-          # Download and make executable
+          # Download and run
+          wget https://github.com/${{ github.repository }}/releases/download/build-${{ steps.commit.outputs.timestamp }}-${{ steps.commit.outputs.sha_short }}/xsa-linux-amd64
           chmod +x xsa-linux-amd64
-          
-          # Run with default path
           sudo ./xsa-linux-amd64
-          
-          # Run with custom path
-          ./xsa-linux-amd64 /custom/path
-          
-          # Use environment variables
-          export XSAPATH="/var/lib/kubelet/pods"
-          export XSALOG="/tmp/xsa.log"
-          ./xsa-linux-amd64
           ```
         draft: false
         prerelease: true
         generate_release_notes: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        make_latest: false
 
   build-summary:
     needs: build
