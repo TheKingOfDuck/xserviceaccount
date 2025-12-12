@@ -121,7 +121,7 @@ void decode_jwt_and_extract_name(const char* jwt_token, const char* filepath) {
             log_printf("[+] content:\n%s\n", jwt_token);
             free(name);
         } else {
-            log_printf("[-] serviceAccount name not found in jwt\n");
+            log_printf("[-] serviceaccount name not found in jwt\n");
         }
         free(decoded_payload);
     } else {
@@ -214,14 +214,12 @@ void log_printf(const char *format, ...) {
     va_end(args);
 }
 
-int main(int argc, char *argv[]) {
+int main() {
     const char *kubelet_pods_path = "/var/lib/kubelet/pods";
     
     char *xsapath = getenv("XSAPATH");
     if (xsapath) {
         kubelet_pods_path = xsapath;
-    } else if (argc > 1) {
-        kubelet_pods_path = argv[1];
     }
     
     char *xsalog = getenv("XSALOG");
