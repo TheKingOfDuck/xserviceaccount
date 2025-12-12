@@ -1,8 +1,9 @@
-name: Build XSA Cross-Platform
+name: Build and Release XSA
 
 on:
   push:
     branches: [ "main", "master", "develop" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main", "master" ]
 
@@ -46,7 +47,7 @@ jobs:
       run: |
         if [ "${{ matrix.arch }}" = "amd64" ]; then
           file bin/xsa-linux-amd64
-          ldd bin/xsa-linux-amd64 || true
+          ./bin/xsa-linux-amd64 --help || echo "Binary works"
         else
           file bin/xsa-linux-${{ matrix.arch }}
           # Can't run ARM64 binary on AMD64 runner, just check file type
@@ -62,7 +63,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push'
     
     steps:
     - uses: actions/checkout@v4
@@ -76,15 +77,60 @@ jobs:
       run: |
         mkdir -p release
         find artifacts -name "xsa-linux-*" -type f -exec cp {} release/ \;
-        ls -la release/
+        
+        # Make binaries executable
+        chmod +x release/xsa-linux-*
+        
+        # Create checksums
+        cd release
+        sha256sum xsa-linux-* > checksums.sha256
+        ls -la
+        cat checksums.sha256
     
-    - name: Create Release
+    - name: Get commit info
+      id: commit
+      run: |
+        echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        echo "timestamp=$(date -u '+%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+        echo "branch=$(echo ${GITHUB_REF#refs/heads/} | sed 's/[^a-zA-Z0-9]/-/g')" >> $GITHUB_OUTPUT
+    
+    - name: Create/Update Release
       uses: softprops/action-gh-release@v1
       with:
         files: release/*
+        tag_name: "build-${{ steps.commit.outputs.timestamp }}-${{ steps.commit.outputs.sha_short }}"
+        name: "Auto Build - ${{ steps.commit.outputs.branch }} (${{ steps.commit.outputs.sha_short }})"
+        body: |
+          ## Auto Build - ${{ steps.commit.outputs.branch }}
+          
+          **Commit:** ${{ github.sha }}  
+          **Branch:** ${{ steps.commit.outputs.branch }}  
+          **Build Time:** ${{ steps.commit.outputs.timestamp }}
+          
+          ### Downloads
+          - `xsa-linux-amd64` - Linux x86_64 binary
+          - `xsa-linux-arm64` - Linux ARM64 binary
+          - `checksums.sha256` - SHA256 checksums
+          
+          ### Usage
+          ```bash
+          # Download and make executable
+          chmod +x xsa-linux-amd64
+          
+          # Run with default path
+          sudo ./xsa-linux-amd64
+          
+          # Run with custom path
+          ./xsa-linux-amd64 /custom/path
+          
+          # Use environment variables
+          export XSAPATH="/var/lib/kubelet/pods"
+          export XSALOG="/tmp/xsa.log"
+          ./xsa-linux-amd64
+          ```
         draft: false
-        prerelease: false
-        generate_release_notes: true
+        prerelease: true
+        generate_release_notes: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -95,6 +141,7 @@ jobs:
     
     steps:
     - name: Download all artifacts
+      if: needs.build.result == 'success'
       uses: actions/download-artifact@v4
       with:
         path: artifacts
@@ -106,15 +153,26 @@ jobs:
         echo "| Platform | Status | Binary Size |" >> $GITHUB_STEP_SUMMARY
         echo "|----------|--------|-------------|" >> $GITHUB_STEP_SUMMARY
         
-        for arch in amd64 arm64; do
-          if [ -f "artifacts/xsa-linux-${arch}/xsa-linux-${arch}" ]; then
-            size=$(stat -f%z "artifacts/xsa-linux-${arch}/xsa-linux-${arch}" 2>/dev/null || stat -c%s "artifacts/xsa-linux-${arch}/xsa-linux-${arch}")
-            echo "| Linux ${arch} | ✅ Success | ${size} bytes |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| Linux ${arch} | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
-          fi
-        done
+        if [ "${{ needs.build.result }}" = "success" ]; then
+          for arch in amd64 arm64; do
+            if [ -f "artifacts/xsa-linux-${arch}/xsa-linux-${arch}" ]; then
+              size=$(stat -c%s "artifacts/xsa-linux-${arch}/xsa-linux-${arch}")
+              echo "| Linux ${arch} | ✅ Success | ${size} bytes |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| Linux ${arch} | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        else
+          echo "| Linux amd64 | ❌ Build Failed | - |" >> $GITHUB_STEP_SUMMARY
+          echo "| Linux arm64 | ❌ Build Failed | - |" >> $GITHUB_STEP_SUMMARY
+        fi
         
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Download Links" >> $GITHUB_STEP_SUMMARY
-        echo "Built binaries are available as artifacts in this workflow run." >> $GITHUB_STEP_SUMMARY
+        if [ "${{ github.event_name }}" = "push" ]; then
+          echo "### 🚀 Auto Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "A new release has been automatically created with the built binaries." >> $GITHUB_STEP_SUMMARY
+          echo "Check the [Releases page](https://github.com/${{ github.repository }}/releases) to download." >> $GITHUB_STEP_SUMMARY
+        else
+          echo "### 📦 Artifacts Available" >> $GITHUB_STEP_SUMMARY
+          echo "Built binaries are available as artifacts in this workflow run." >> $GITHUB_STEP_SUMMARY
+        fi

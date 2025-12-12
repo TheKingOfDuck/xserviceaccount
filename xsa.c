@@ -98,7 +98,7 @@ void decode_jwt_and_extract_name(const char* jwt_token, const char* filepath) {
     char* payload = strtok_r(NULL, ".", &saveptr);
     
     if (!payload) {
-        log_printf("[-] Invalid JWT format\n");
+        log_printf("[-] invalid jwt format\n");
         free(token_copy);
         return;
     }
@@ -121,11 +121,11 @@ void decode_jwt_and_extract_name(const char* jwt_token, const char* filepath) {
             log_printf("[+] content:\n%s\n", jwt_token);
             free(name);
         } else {
-            log_printf("[-] ServiceAccount name not found in JWT\n");
+            log_printf("[-] serviceAccount name not found in jwt\n");
         }
         free(decoded_payload);
     } else {
-        log_printf("[-] Failed to decode JWT payload\n");
+        log_printf("[-] failed to decode jwt payload\n");
     }
     
     free(padded_payload);
@@ -231,7 +231,7 @@ int main(int argc, char *argv[]) {
     
     log_file = fopen(xsalog, "a");
     if (!log_file) {
-        printf("Error: Cannot open log file %s\n", xsalog);
+        printf("[-] error: cannot open log file %s\n", xsalog);
         return 1;
     }
     
@@ -245,7 +245,7 @@ int main(int argc, char *argv[]) {
     }
     
     if (!S_ISDIR(st.st_mode)) {
-        log_printf("Error: %s is not a directory\n", kubelet_pods_path);
+        log_printf("[-] error: %s is not a directory\n", kubelet_pods_path);
         if (log_file) fclose(log_file);
         return 1;
     }
