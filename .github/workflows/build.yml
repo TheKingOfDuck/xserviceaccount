@@ -1,0 +1,120 @@
+name: Build XSA Cross-Platform
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            gcc: gcc
+            target: x86_64-linux-gnu
+          - arch: arm64
+            gcc: aarch64-linux-gnu-gcc
+            target: aarch64-linux-gnu
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install cross-compilation tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-multilib
+        if [ "${{ matrix.arch }}" = "arm64" ]; then
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+        fi
+
+    - name: Create bin directory
+      run: mkdir -p bin
+
+    - name: Build Linux ${{ matrix.arch }}
+      run: |
+        if [ "${{ matrix.arch }}" = "amd64" ]; then
+          gcc -Wall -O2 -static -o bin/xsa-linux-amd64 xsa.c
+        else
+          ${{ matrix.gcc }} -Wall -O2 -static -o bin/xsa-linux-${{ matrix.arch }} xsa.c
+        fi
+
+    - name: Test binary
+      run: |
+        if [ "${{ matrix.arch }}" = "amd64" ]; then
+          file bin/xsa-linux-amd64
+          ldd bin/xsa-linux-amd64 || true
+        else
+          file bin/xsa-linux-${{ matrix.arch }}
+          # Can't run ARM64 binary on AMD64 runner, just check file type
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: xsa-linux-${{ matrix.arch }}
+        path: bin/xsa-linux-${{ matrix.arch }}
+        retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+    
+    - name: Prepare release assets
+      run: |
+        mkdir -p release
+        find artifacts -name "xsa-linux-*" -type f -exec cp {} release/ \;
+        ls -la release/
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-summary:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        
+    - name: Build Summary
+      run: |
+        echo "## Build Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Platform | Status | Binary Size |" >> $GITHUB_STEP_SUMMARY
+        echo "|----------|--------|-------------|" >> $GITHUB_STEP_SUMMARY
+        
+        for arch in amd64 arm64; do
+          if [ -f "artifacts/xsa-linux-${arch}/xsa-linux-${arch}" ]; then
+            size=$(stat -f%z "artifacts/xsa-linux-${arch}/xsa-linux-${arch}" 2>/dev/null || stat -c%s "artifacts/xsa-linux-${arch}/xsa-linux-${arch}")
+            echo "| Linux ${arch} | ✅ Success | ${size} bytes |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Linux ${arch} | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+        done
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Download Links" >> $GITHUB_STEP_SUMMARY
+        echo "Built binaries are available as artifacts in this workflow run." >> $GITHUB_STEP_SUMMARY

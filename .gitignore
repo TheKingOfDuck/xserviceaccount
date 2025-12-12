@@ -1,0 +1,93 @@
+# Compiled binaries
+xsa
+xsa-*
+*.exe
+*.out
+*.app
+
+# Object files
+*.o
+*.obj
+*.ko
+*.elf
+
+# Shared libraries
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Static libraries
+*.a
+*.lib
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Core dumps
+core
+core.*
+
+# Temporary files
+*.tmp
+*.temp
+*~
+.DS_Store
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+bin/
+.build/
+*.swp
+*.swo
+*.vim
+*.sublime-*
+
+# Log files
+*.log
+*.logs
+
+# OS generated files
+.DS_Store?
+ehthumbs.db
+Desktop.ini
+
+# Test files and directories
+test/
+tests/
+testdata/
+*.test
+
+# Coverage files
+*.gcov
+*.gcno
+*.gcda
+coverage.out
+
+# Backup files
+*.bak
+*.backup
+
+# Package files
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+build/
+dist/
+target/
+
+# Dependency directories
+vendor/
